@@ -13,7 +13,7 @@ static float resize(float value, int baseDimension, int currentDimension) {
     return value * (currentDimension / (float)baseDimension);
 }
 
-void InitGame(int screenWidth, int screenHeight) {
+void InitBlockCrusher(int screenWidth, int screenHeight) {
     game.ball.position = (Vector2){screenWidth/2, screenHeight/2};
     game.ball.speed = (Vector2){resize(5.0f, BASE_WIDTH, screenWidth), 
                                resize(5.0f, BASE_HEIGHT, screenHeight)};
@@ -70,9 +70,9 @@ void InitGame(int screenWidth, int screenHeight) {
     game.paused = false;
 }
 
-void UpdateGame(int screenWidth, int screenHeight, struct GameManager* manager) {
+void UpdateBlockCrusher(int screenWidth, int screenHeight, struct GameManager* manager) {
     if (IsKeyPressed(KEY_P)) game.paused = !game.paused;
-    if (IsKeyPressed(KEY_R)) InitGame(screenWidth, screenHeight);
+    if (IsKeyPressed(KEY_R)) InitBlockCrusher(screenWidth, screenHeight);
     if (IsKeyPressed(KEY_M)) {
         manager->currentGame = GAME_MAIN_MENU;
         return;
@@ -137,7 +137,7 @@ void UpdateGame(int screenWidth, int screenHeight, struct GameManager* manager) 
                 if (all_gone) {
                     game.ball.speed.x *= 1.1f;
                     game.ball.speed.y *= 1.1f;
-                    InitGame(screenWidth, screenHeight);
+                    InitBlockCrusher(screenWidth, screenHeight);
                     game.score += 100;
                 }
                 
