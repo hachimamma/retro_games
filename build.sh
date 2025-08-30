@@ -1,5 +1,7 @@
 #!/bin/bash
 
+chmod +x "$0"
+
 echo "Building Retro Games Collection..."
 
 gcc -o retro_games main.c game_manager.c block_crusher.c -lraylib -lm -lpthread -ldl
@@ -13,6 +15,6 @@ if [ $? -eq 0 ]; then
     echo ""
     ./retro_games
 else
-    echo "Build failed! Pls inform the developer, or try to fix urself!"
+    echo "Build failed! Check your code for errors."
     exit 1
 fi
