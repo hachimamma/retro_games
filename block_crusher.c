@@ -9,7 +9,7 @@
 #define BALL_TRAIL_LENGTH 16
 #define MAX_BALLS 16
 #define MAX_POWERUPS 10
-#define POWERUP_DROP_CHANCE 30
+#define POWERUP_DROP_CHANCE 20
 
 static BlockCrusherGame game;
 
