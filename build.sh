@@ -1,20 +1,21 @@
 #!/bin/bash
 
-chmod +x "$0"
-
 echo "Building Retro Games Collection..."
 
-gcc -o retro_games main.c game_manager.c block_crusher.c -lraylib -lm -lpthread -ldl
+gcc -o retro_games \
+    main.c \
+    game_manager.c \
+    block_crusher/block_crusher.c \
+    block_crusher/block_crusher_balls.c \
+    block_crusher/block_crusher_powerups.c \
+    block_crusher/block_crusher_levels.c \
+    block_crusher/block_crusher_collision.c \
+    block_crusher/block_crusher_rendering.c \
+    -lraylib -lGL -lm -lpthread -ldl -lrt -lX11
 
 if [ $? -eq 0 ]; then
-    echo "Build successful! Starting game..."
-    echo ""
-    echo "CONTROLS:"
-    echo "  Main Menu: Press 1 for Block Crusher, 4 to Exit"
-    echo "  In Game: Arrow Keys = Move, P = Pause, R = Restart, M = Return to Menu"
-    echo ""
+    echo "Build successful! Running game..."
     ./retro_games
 else
     echo "Build failed! Check your code for errors."
-    exit 1
 fi
