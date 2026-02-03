@@ -1,8 +1,5 @@
 #include "game_manager.h"
-#include "block_crusher.h"
-
-#define BASE_WIDTH 800
-#define BASE_HEIGHT 600
+#include "block_crusher/block_crusher.h"
 
 void InitGameManager(GameManager* manager) {
     manager->currentGame = GAME_MAIN_MENU;
