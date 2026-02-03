@@ -1,94 +1,178 @@
 #include "block_crusher_collision.h"
+#include "block_crusher_balls.h"
 #include "block_crusher_powerups.h"
 #include <math.h>
 #include <stdlib.h>
 
-void HandleBallBlockCollision(int ballIdx, int blockIdx, BlockCrusherGame* game) {
-    if (!game->blocks[blockIdx].active) return;
+static inline float Vector2Distance(Vector2 v1, Vector2 v2) {
+    float dx = v2.x - v1.x;
+    float dy = v2.y - v1.y;
+    return sqrtf(dx * dx + dy * dy);
+}
+
+void HandleBallPaddleCollision(int ballIndex, Paddle* paddle) {
+    if (!balls[ballIndex].active || !paddle->active) return;
     
-    Rectangle block = game->blocks[blockIdx].rect;
-    Vector2 ballPos = balls[ballIdx].position;
-    float radius = balls[ballIdx].radius;
-    
-    if (!CheckCollisionCircleRec(ballPos, radius, block)) return;
-    
-    game->blocks[blockIdx].hitsTaken++;
-    
-    if (game->blocks[blockIdx].hitsTaken >= game->blocks[blockIdx].hitsRequired) {
-        game->blocks[blockIdx].active = false;
-        game->score += 10 * game->blocks[blockIdx].hitsRequired;
-        
-        if (rand() % 100 < POWERUP_DROP_CHANCE) {
-            float centerX = block.x + block.width / 2;
-            float centerY = block.y + block.height / 2;
-            SpawnPowerUp(centerX, centerY, GetScreenWidth(), GetScreenHeight());
+    if (CheckCollisionCircleRec(balls[ballIndex].position, balls[ballIndex].radius, paddle->rect)) {
+        if (balls[ballIndex].speed.y > 0) {
+            balls[ballIndex].speed.y *= -1;
+            
+            float paddleCenter = paddle->rect.x + paddle->rect.width / 2;
+            float hitPosition = (balls[ballIndex].position.x - paddleCenter) / (paddle->rect.width / 2);
+            hitPosition = fmaxf(-1.0f, fminf(1.0f, hitPosition));
+            
+            float angleAdjustment = hitPosition * 45.0f * (3.14159f / 180.0f);
+            float speed = sqrtf(balls[ballIndex].speed.x * balls[ballIndex].speed.x + 
+                              balls[ballIndex].speed.y * balls[ballIndex].speed.y);
+            
+            balls[ballIndex].speed.x = speed * sinf(angleAdjustment);
+            balls[ballIndex].speed.y = -fabsf(speed * cosf(angleAdjustment));
+            
+            balls[ballIndex].position.y = paddle->rect.y - balls[ballIndex].radius - 1;
         }
     }
+}
+
+static void ExplodeBlocks(BlockCrusherGame* game, Vector2 epicenter, float radius) {
+    for (int i = 0; i < game->blocksCount; i++) {
+        if (!game->blocks[i].active) continue;
+        
+        Vector2 blockCenter = {
+            game->blocks[i].rect.x + game->blocks[i].rect.width / 2,
+            game->blocks[i].rect.y + game->blocks[i].rect.height / 2
+        };
+        
+        float distance = Vector2Distance(epicenter, blockCenter);
+        
+        if (distance < radius) {
+            game->blocks[i].active = false;
+            game->score += 10;
+            
+            if ((rand() % 100) < 5) {
+                SpawnPowerUp(blockCenter.x, blockCenter.y, 800, 600);
+            }
+        }
+    }
+}
+
+void HandleBallBlockCollision(int ballIndex, int blockIndex, BlockCrusherGame* game) {
+    if (!balls[ballIndex].active || !game->blocks[blockIndex].active) return;
     
-    float overlapLeft = (ballPos.x + radius) - block.x;
-    float overlapRight = (block.x + block.width) - (ballPos.x - radius);
-    float overlapTop = (ballPos.y + radius) - block.y;
-    float overlapBottom = (block.y + block.height) - (ballPos.y - radius);
+    Ball* ball = &balls[ballIndex];
+    Block* block = &game->blocks[blockIndex];
     
-    float minOverlap = fminf(fminf(overlapLeft, overlapRight), 
-                           fminf(overlapTop, overlapBottom));
+    switch (ball->type) {
+        case BALL_EXPLOSIVE:
+            {
+                Vector2 explosionCenter = {
+                    block->rect.x + block->rect.width / 2,
+                    block->rect.y + block->rect.height / 2
+                };
+                float explosionRadius = ball->radius * 6.0f;
+                ExplodeBlocks(game, explosionCenter, explosionRadius);
+                
+                game->consecutiveHits = 0;
+            }
+            break;
+            
+        case BALL_LASER:
+            block->active = false;
+            game->score += 10;
+            game->consecutiveHits++;
+            
+            if ((rand() % 100) < POWERUP_DROP_CHANCE) {
+                SpawnPowerUp(block->rect.x + block->rect.width/2, 
+                           block->rect.y + block->rect.height/2,
+                           800, 600);
+            }
+            
+            if (game->consecutiveHits >= 5) {
+                game->score += game->consecutiveHits * 5;
+            }
+            return;
+            
+        case BALL_HEAVY:
+            block->active = false;
+            game->score += 15;
+            game->consecutiveHits++;
+            
+            if ((rand() % 100) < POWERUP_DROP_CHANCE) {
+                SpawnPowerUp(block->rect.x + block->rect.width/2, 
+                           block->rect.y + block->rect.height/2,
+                           800, 600);
+            }
+            break;
+            
+        case BALL_FIRE:
+            block->hitsTaken++;
+            if (block->hitsTaken >= block->hitsRequired) {
+                block->active = false;
+                game->score += 10;
+                game->consecutiveHits++;
+                
+                if ((rand() % 100) < POWERUP_DROP_CHANCE) {
+                    SpawnPowerUp(block->rect.x + block->rect.width/2, 
+                               block->rect.y + block->rect.height/2,
+                               800, 600);
+                }
+            } else {
+                block->color = ColorBrightness(block->color, -0.2f);
+            }
+            break;
+            
+        case BALL_NORMAL:
+        default:
+            block->hitsTaken++;
+            
+            if (block->hitsTaken >= block->hitsRequired) {
+                block->active = false;
+                game->score += 10;
+                game->consecutiveHits++;
+                
+                if ((rand() % 100) < POWERUP_DROP_CHANCE) {
+                    SpawnPowerUp(block->rect.x + block->rect.width/2, 
+                               block->rect.y + block->rect.height/2,
+                               800, 600);
+                }
+                
+                if (game->consecutiveHits >= 10) {
+                    game->score += 100;
+                    int specialType = POWERUP_EXPLOSIVE_BALL + (rand() % 4);
+                    PowerUp* pu = &powerups[0];
+                    for (int i = 0; i < MAX_POWERUPS; i++) {
+                        if (!powerups[i].active) {
+                            pu = &powerups[i];
+                            break;
+                        }
+                    }
+                    pu->position = (Vector2){block->rect.x + block->rect.width/2, 
+                                            block->rect.y + block->rect.height/2};
+                    pu->speed = (Vector2){0, 3};
+                    pu->radius = 10;
+                    pu->active = true;
+                    pu->type = specialType;
+                    pu->spawnTime = GetTime();
+                }
+            } else {
+                block->color = ColorBrightness(block->color, -0.15f);
+                game->consecutiveHits = 0;
+            }
+            break;
+    }
     
-    if (minOverlap == overlapLeft || minOverlap == overlapRight) {
-        balls[ballIdx].speed.x *= -1;
-        balls[ballIdx].position.x += (minOverlap == overlapLeft) ? -minOverlap : minOverlap;
+    Vector2 blockCenter = {block->rect.x + block->rect.width / 2, 
+                          block->rect.y + block->rect.height / 2};
+    
+    float dx = ball->position.x - blockCenter.x;
+    float dy = ball->position.y - blockCenter.y;
+    
+    if (fabsf(dx) > fabsf(dy)) {
+        ball->speed.x *= -1;
+        ball->position.x = (dx > 0) ? block->rect.x + block->rect.width + ball->radius + 1
+                                    : block->rect.x - ball->radius - 1;
     } else {
-        balls[ballIdx].speed.y *= -1;
-        balls[ballIdx].position.y += (minOverlap == overlapTop) ? -minOverlap : minOverlap;
-    }
-    
-    balls[ballIdx].speed.x += ((rand() % 100) / 1000.0f - 0.05f);
-    balls[ballIdx].speed.y += ((rand() % 100) / 1000.0f - 0.05f);
-    
-    float speed = sqrtf(balls[ballIdx].speed.x * balls[ballIdx].speed.x + 
-                       balls[ballIdx].speed.y * balls[ballIdx].speed.y);
-    float maxSpeed = resize(BASE_BALL_SPEED * 2.5f, BASE_WIDTH, GetScreenWidth());
-    float minSpeed = resize(BASE_BALL_SPEED * 0.5f, BASE_WIDTH, GetScreenWidth());
-    
-    if (speed > maxSpeed) {
-        balls[ballIdx].speed.x = (balls[ballIdx].speed.x / speed) * maxSpeed;
-        balls[ballIdx].speed.y = (balls[ballIdx].speed.y / speed) * maxSpeed;
-    } else if (speed < minSpeed) {
-        balls[ballIdx].speed.x = (balls[ballIdx].speed.x / speed) * minSpeed;
-        balls[ballIdx].speed.y = (balls[ballIdx].speed.y / speed) * minSpeed;
-    }
-}
-
-void HandleBallPaddleCollision(int ballIdx, Paddle* paddle) {
-    if (!CheckCollisionCircleRec(balls[ballIdx].position, balls[ballIdx].radius, paddle->rect)) {
-        return;
-    }
-    
-    balls[ballIdx].speed.y *= -1;
-    
-    float hitPosition = (balls[ballIdx].position.x - paddle->rect.x) / paddle->rect.width;
-    float angle = (hitPosition - 0.5f) * 1.5f;
-    
-    float speed = sqrtf(balls[ballIdx].speed.x * balls[ballIdx].speed.x + 
-                       balls[ballIdx].speed.y * balls[ballIdx].speed.y);
-    
-    balls[ballIdx].speed.x = sinf(angle) * speed;
-    balls[ballIdx].speed.y = -fabsf(cosf(angle) * speed);
-    
-    balls[ballIdx].position.y = paddle->rect.y - balls[ballIdx].radius - 1;
-}
-
-void UpdatePaddle(Paddle* paddle, int screenWidth) {
-    float pd_speed = resize(BASE_PADDLE_SPEED, BASE_WIDTH, screenWidth);
-    
-    if (IsKeyDown(KEY_LEFT) && paddle->rect.x > 0) {
-        paddle->rect.x -= pd_speed;
-    }
-    if (IsKeyDown(KEY_RIGHT) && paddle->rect.x < screenWidth - paddle->rect.width) {
-        paddle->rect.x += pd_speed;
-    }
-    
-    if (paddle->rect.x < 0) paddle->rect.x = 0;
-    if (paddle->rect.x > screenWidth - paddle->rect.width) {
-        paddle->rect.x = screenWidth - paddle->rect.width;
+        ball->speed.y *= -1;
+        ball->position.y = (dy > 0) ? block->rect.y + block->rect.height + ball->radius + 1
+                                    : block->rect.y - ball->radius - 1;
     }
 }

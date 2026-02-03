@@ -6,6 +6,12 @@
 Ball balls[MAX_BALLS];
 int activeBallCount = 1;
 
+static inline float Vector2Distance(Vector2 v1, Vector2 v2) {
+    float dx = v2.x - v1.x;
+    float dy = v2.y - v1.y;
+    return sqrtf(dx * dx + dy * dy);
+}
+
 void InitBalls(int screenWidth, int screenHeight) {
     balls[0].position = (Vector2){screenWidth/2, screenHeight/2};
     balls[0].speed = (Vector2){
@@ -15,6 +21,8 @@ void InitBalls(int screenWidth, int screenHeight) {
     balls[0].radius = resize(BALL_RADIUS, BASE_WIDTH, screenWidth);
     balls[0].active = true;
     balls[0].trailIndex = 0;
+    balls[0].type = BALL_NORMAL;
+    balls[0].specialTimer = 0.0f;
     
     for (int i = 0; i < BALL_TRAIL_LENGTH; i++) {
         balls[0].trail[i] = balls[0].position;
@@ -75,6 +83,32 @@ void DoubleBalls(void) {
     }
 }
 
+void SetBallType(int ballIndex, BallType type, float duration) {
+    if (ballIndex < 0 || ballIndex >= MAX_BALLS || !balls[ballIndex].active) return;
+    
+    balls[ballIndex].type = type;
+    balls[ballIndex].specialTimer = duration;
+    
+    switch (type) {
+        case BALL_HEAVY:
+            balls[ballIndex].radius *= 1.3f;
+            break;
+        case BALL_FIRE:
+            balls[ballIndex].radius *= 1.1f;
+            break;
+        default:
+            break;
+    }
+}
+
+void ConvertAllBallsToType(BallType type, float duration) {
+    for (int i = 0; i < MAX_BALLS; i++) {
+        if (balls[i].active) {
+            SetBallType(i, type, duration);
+        }
+    }
+}
+
 void ResetBall(int screenWidth, int screenHeight) {
     balls[0].position = (Vector2){screenWidth/2, screenHeight/2};
     balls[0].speed = (Vector2){
@@ -82,6 +116,8 @@ void ResetBall(int screenWidth, int screenHeight) {
         resize(BASE_BALL_SPEED, BASE_HEIGHT, screenHeight)
     };
     balls[0].active = true;
+    balls[0].type = BALL_NORMAL;
+    balls[0].specialTimer = 0.0f;
     
     for (int i = 0; i < BALL_TRAIL_LENGTH; i++) {
         balls[0].trail[i] = balls[0].position;
@@ -114,13 +150,44 @@ void UpdateBallTrail(Ball *ball) {
 }
 
 void UpdateBalls(BlockCrusherGame* game, int screenWidth, int screenHeight) {
+    float baseRadius = resize(BALL_RADIUS, BASE_WIDTH, screenWidth);
+    
     for (int ballIdx = 0; ballIdx < MAX_BALLS; ballIdx++) {
         if (!balls[ballIdx].active) continue;
+        
+        if (balls[ballIdx].specialTimer > 0.0f) {
+            balls[ballIdx].specialTimer -= GetFrameTime();
+            if (balls[ballIdx].specialTimer <= 0.0f) {
+                balls[ballIdx].type = BALL_NORMAL;
+                balls[ballIdx].radius = baseRadius;
+            }
+        }
         
         UpdateBallTrail(&balls[ballIdx]);
         
         balls[ballIdx].position.x += balls[ballIdx].speed.x;
         balls[ballIdx].position.y += balls[ballIdx].speed.y;
+        
+        if (balls[ballIdx].type == BALL_FIRE) {
+            float damageRadius = balls[ballIdx].radius * 2.5f;
+            for (int i = 0; i < game->blocksCount; i++) {
+                if (!game->blocks[i].active) continue;
+                
+                Vector2 blockCenter = {
+                    game->blocks[i].rect.x + game->blocks[i].rect.width / 2,
+                    game->blocks[i].rect.y + game->blocks[i].rect.height / 2
+                };
+                
+                float dist = Vector2Distance(balls[ballIdx].position, blockCenter);
+                if (dist < damageRadius) {
+                    game->blocks[i].hitsTaken++;
+                    if (game->blocks[i].hitsTaken >= game->blocks[i].hitsRequired) {
+                        game->blocks[i].active = false;
+                        game->score += 10;
+                    }
+                }
+            }
+        }
         
         if (balls[ballIdx].position.x >= screenWidth - balls[ballIdx].radius || 
             balls[ballIdx].position.x <= balls[ballIdx].radius) {
@@ -151,31 +218,87 @@ void UpdateBalls(BlockCrusherGame* game, int screenWidth, int screenHeight) {
         
         HandleBallPaddleCollision(ballIdx, &game->paddle);
         
+        bool hitBlock = false;
         for (int i = 0; i < game->blocksCount; i++) {
-            HandleBallBlockCollision(ballIdx, i, game);
+            if (!game->blocks[i].active) continue;
+            
+            if (CheckCollisionCircleRec(balls[ballIdx].position, balls[ballIdx].radius, game->blocks[i].rect)) {
+                HandleBallBlockCollision(ballIdx, i, game);
+                hitBlock = true;
+                
+                if (balls[ballIdx].type != BALL_LASER) {
+                    break;
+                }
+            }
         }
     }
 }
 
+static Color GetBallColor(BallType type) {
+    switch (type) {
+        case BALL_EXPLOSIVE:  return ORANGE;
+        case BALL_LASER:      return (Color){0, 255, 255, 255};   // cyan
+        case BALL_HEAVY:      return (Color){128, 128, 128, 255}; // gray
+        case BALL_FIRE:       return RED;
+        default:              return WHITE;
+    }
+}
+
 void DrawBallWithTrail(Ball *ball) {
+    Color trailColor = GetBallColor(ball->type);
+
     for (int i = BALL_TRAIL_LENGTH - 1; i >= 0; i--) {
         int index = (ball->trailIndex + i) % BALL_TRAIL_LENGTH;
         
         if (ball->trailAlpha[index] > 0.0f) {
             float easedAlpha = sqrtf(ball->trailAlpha[index]);
-            Color trailColor = Fade(WHITE, easedAlpha * 0.6f);
+            Color fadeColor = Fade(trailColor, easedAlpha * 0.6f);
             
-            DrawCircleV(ball->trail[index], ball->trailSize[index], trailColor);
+            DrawCircleV(ball->trail[index], ball->trailSize[index], fadeColor);
             
             if (ball->trailAlpha[index] > 0.5f) {
                 DrawCircleV(ball->trail[index], ball->trailSize[index] * 1.3f, 
-                           Fade((Color){200, 200, 255, 255}, easedAlpha * 0.2f));
+                           Fade(trailColor, easedAlpha * 0.2f));
             }
         }
     }
     
-    DrawCircleV(ball->position, ball->radius, WHITE);
-    DrawCircleV(ball->position, ball->radius * 1.1f, Fade(WHITE, 0.3f));
+    Color ballColor = GetBallColor(ball->type);
+    
+    switch (ball->type) {
+        case BALL_EXPLOSIVE:
+            // pulsing orange effect
+            {
+                float pulse = sinf(GetTime() * 10.0f) * 0.2f + 0.8f;
+                DrawCircleV(ball->position, ball->radius * 1.5f * pulse, Fade(ORANGE, 0.3f));
+            }
+            break;
+            
+        case BALL_LASER:
+            // cyan glow with sparks effect
+            DrawCircleV(ball->position, ball->radius * 1.4f, Fade((Color){0, 255, 255, 255}, 0.4f));
+            break;
+            
+        case BALL_HEAVY:
+            // dark effect
+            DrawCircleV(ball->position, ball->radius * 1.2f, Fade((Color){64, 64, 64, 255}, 0.5f));
+            break;
+            
+        case BALL_FIRE:
+            // fire particles
+            {
+                float pulse = sinf(GetTime() * 8.0f) * 0.3f + 0.7f;
+                DrawCircleV(ball->position, ball->radius * 1.6f * pulse, Fade(RED, 0.4f));
+                DrawCircleV(ball->position, ball->radius * 1.3f * pulse, Fade(ORANGE, 0.3f));
+            }
+            break;
+            
+        default:
+            break;
+    }
+    
+    DrawCircleV(ball->position, ball->radius, ballColor);
+    DrawCircleV(ball->position, ball->radius * 1.1f, Fade(ballColor, 0.3f));
     
     DrawCircle(ball->position.x - ball->radius/3, 
                ball->position.y - ball->radius/3, 

@@ -11,6 +11,8 @@ extern int activeBallCount;
 
 void InitBalls(int screenWidth, int screenHeight);
 void DoubleBalls(void);
+void SetBallType(int ballIndex, BallType type, float duration);
+void ConvertAllBallsToType(BallType type, float duration);
 void ResetBall(int screenWidth, int screenHeight);
 void UpdateBalls(BlockCrusherGame* game, int screenWidth, int screenHeight);
 void UpdateBallTrail(Ball *ball);

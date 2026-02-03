@@ -7,7 +7,6 @@
 #define BASE_WIDTH 800
 #define BASE_HEIGHT 600
 #define BALL_TRAIL_LENGTH 16
-
 #define BASE_BALL_SPEED 5.0f
 #define BASE_PADDLE_SPEED 8.0f
 #define BALL_RADIUS 8.0f
@@ -41,6 +40,15 @@ typedef struct Paddle {
     float baseWidth;
 } Paddle;
 
+typedef enum {
+    BALL_NORMAL,
+    BALL_EXPLOSIVE,
+    BALL_LASER,
+    BALL_HEAVY,
+    BALL_FIRE,
+    BALL_TYPE_COUNT
+} BallType;
+
 typedef struct Ball {
     Vector2 position;
     Vector2 speed;
@@ -50,6 +58,8 @@ typedef struct Ball {
     float trailAlpha[BALL_TRAIL_LENGTH];
     float trailSize[BALL_TRAIL_LENGTH];
     int trailIndex;
+    BallType type;
+    float specialTimer;
 } Ball;
 
 typedef struct BlockCrusherGame {
@@ -60,6 +70,7 @@ typedef struct BlockCrusherGame {
     int lives;
     bool gameOver;
     bool paused;
+    int consecutiveHits;
 } BlockCrusherGame;
 
 // Utility function

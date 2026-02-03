@@ -30,10 +30,14 @@ void SpawnPowerUp(float x, float y, int screenWidth, int screenHeight) {
     int randVal = rand() % 100;
     PowerUpType type;
     
-    if (randVal < 40) type = POWERUP_DOUBLE_BALLS;
-    else if (randVal < 70) type = POWERUP_ENLARGE_PADDLE;
-    else if (randVal < 90) type = POWERUP_SLOW_BALL;
-    else type = POWERUP_EXTRA_LIFE;
+    if (randVal < 20) type = POWERUP_DOUBLE_BALLS;
+    else if (randVal < 35) type = POWERUP_ENLARGE_PADDLE;
+    else if (randVal < 50) type = POWERUP_SLOW_BALL;
+    else if (randVal < 60) type = POWERUP_EXTRA_LIFE;
+    else if (randVal < 70) type = POWERUP_EXPLOSIVE_BALL;
+    else if (randVal < 80) type = POWERUP_LASER_BALL;
+    else if (randVal < 90) type = POWERUP_HEAVY_BALL;
+    else type = POWERUP_FIRE_BALL;
     
     powerups[index].position = (Vector2){x, y};
     powerups[index].speed = (Vector2){0, resize(POWERUP_SPEED, BASE_HEIGHT, screenHeight)};
@@ -65,7 +69,22 @@ void ActivatePowerUp(PowerUpType type, Paddle* paddle) {
             break;
             
         case POWERUP_EXTRA_LIFE:
-            // Life increment handled by caller
+            break;
+            
+        case POWERUP_EXPLOSIVE_BALL:
+            ConvertAllBallsToType(BALL_EXPLOSIVE, 15.0f);
+            break;
+            
+        case POWERUP_LASER_BALL:
+            ConvertAllBallsToType(BALL_LASER, 12.0f);
+            break;
+            
+        case POWERUP_HEAVY_BALL:
+            ConvertAllBallsToType(BALL_HEAVY, 10.0f);
+            break;
+            
+        case POWERUP_FIRE_BALL:
+            ConvertAllBallsToType(BALL_FIRE, 8.0f);
             break;
             
         default:
@@ -124,6 +143,10 @@ static Color GetPowerUpColor(PowerUpType type) {
         case POWERUP_ENLARGE_PADDLE:  return GREEN;
         case POWERUP_SLOW_BALL:       return YELLOW;
         case POWERUP_EXTRA_LIFE:      return RED;
+        case POWERUP_EXPLOSIVE_BALL:  return ORANGE;
+        case POWERUP_LASER_BALL:      return (Color){0, 255, 255, 255}; // cyan
+        case POWERUP_HEAVY_BALL:      return (Color){128, 128, 128, 255}; // gray
+        case POWERUP_FIRE_BALL:       return (Color){255, 100, 0, 255}; // bright orange-red
         default:                      return WHITE;
     }
 }
@@ -134,6 +157,10 @@ static const char* GetPowerUpSymbol(PowerUpType type) {
         case POWERUP_ENLARGE_PADDLE:  return "++";
         case POWERUP_SLOW_BALL:       return "--";
         case POWERUP_EXTRA_LIFE:      return "+1";
+        case POWERUP_EXPLOSIVE_BALL:  return "EX";
+        case POWERUP_LASER_BALL:      return "LZ";
+        case POWERUP_HEAVY_BALL:      return "HV";
+        case POWERUP_FIRE_BALL:       return "FR";
         default:                      return "?";
     }
 }
@@ -145,6 +172,30 @@ static void DrawPowerUp(PowerUp* pu) {
     
     float pulse = sinf(GetTime() * 5.0f) * 0.1f + 0.9f;
     float radius = pu->radius * pulse;
+    
+    switch (pu->type) {
+        case POWERUP_EXPLOSIVE_BALL:
+            {
+                float explosionPulse = sinf(GetTime() * 8.0f) * 0.3f + 0.7f;
+                DrawCircleV(pu->position, radius * 1.8f * explosionPulse, Fade(ORANGE, 0.2f));
+            }
+            break;
+            
+        case POWERUP_LASER_BALL:
+            DrawCircleV(pu->position, radius * 1.5f, Fade((Color){0, 255, 255, 255}, 0.3f));
+            break;
+            
+        case POWERUP_FIRE_BALL:
+            {
+                float firePulse = sinf(GetTime() * 10.0f) * 0.4f + 0.6f;
+                DrawCircleV(pu->position, radius * 1.7f * firePulse, Fade(RED, 0.25f));
+                DrawCircleV(pu->position, radius * 1.4f * firePulse, Fade(ORANGE, 0.3f));
+            }
+            break;
+            
+        default:
+            break;
+    }
     
     DrawCircleV(pu->position, radius, mainColor);
     DrawCircleV(pu->position, radius * 1.3f, Fade(mainColor, 0.3f));

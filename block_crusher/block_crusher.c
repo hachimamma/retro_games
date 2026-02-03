@@ -2,13 +2,30 @@
 #include "block_crusher_balls.h"
 #include "block_crusher_powerups.h"
 #include "block_crusher_levels.h"
-#include "block_crusher_collision.h"
 #include "block_crusher_rendering.h"
 #include "../game_manager.h"
 #include <stdlib.h>
 #include <time.h>
 
 static BlockCrusherGame game = {0};
+
+static void UpdatePaddle(Paddle* paddle, int screenWidth) {
+    if (!paddle->active) return;
+    
+    if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A)) {
+        paddle->rect.x -= paddle->speed.x;
+    }
+    if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) {
+        paddle->rect.x += paddle->speed.x;
+    }
+    
+    if (paddle->rect.x < 0) {
+        paddle->rect.x = 0;
+    }
+    if (paddle->rect.x + paddle->rect.width > screenWidth) {
+        paddle->rect.x = screenWidth - paddle->rect.width;
+    }
+}
 
 void InitBlockCrusher(int screenWidth, int screenHeight) {
     srand(time(NULL));
@@ -17,6 +34,7 @@ void InitBlockCrusher(int screenWidth, int screenHeight) {
     game.lives = 3;
     game.gameOver = false;
     game.paused = false;
+    game.consecutiveHits = 0;
     
     InitBalls(screenWidth, screenHeight);
     InitPowerUps();
